@@ -1,0 +1,12 @@
+# Made by XcodeGen during the build
+*.xcodeproj/
+GroomCard/Info.plist
+build/
+DerivedData/
+.DS_Store
+# Never commit signing keys or API keys
+*.p8
+*.p12
+*.mobileprovision
+*.pem
+*.key

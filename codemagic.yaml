@@ -1,0 +1,53 @@
+# Codemagic builds GroomCard on a Mac in the cloud and uploads it to App Store Connect (TestFlight).
+# Start a build by hand in Codemagic: "Start new build" > workflow "GroomCard iOS".
+#
+# Needs two environment variable groups in Codemagic (app settings > Environment variables):
+#   app_store_credentials:  APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_KEY_IDENTIFIER, APP_STORE_CONNECT_PRIVATE_KEY
+#   certificate_credentials: CERTIFICATE_PRIVATE_KEY
+# (all marked "Secret"). See APP STORE.md for where each value comes from.
+workflows:
+  groomcard-ios:
+    name: GroomCard iOS
+    max_build_duration: 30
+    instance_type: mac_mini_m2
+    environment:
+      groups:
+        - app_store_credentials
+        - certificate_credentials
+      vars:
+        BUNDLE_ID: "app.groomcard"
+        XCODE_PROJECT: "GroomCard.xcodeproj"
+        XCODE_SCHEME: "GroomCard"
+      xcode: latest
+    scripts:
+      - name: Create the Xcode project from project.yml
+        script: |
+          brew install xcodegen
+          xcodegen generate
+      - name: Set up a keychain for code signing
+        script: |
+          keychain initialize
+      - name: Fetch (or create) the App Store signing certificate and profile
+        script: |
+          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
+      - name: Add the certificate to the keychain
+        script: |
+          keychain add-certificates
+      - name: Use the signing profile in the Xcode project
+        script: |
+          xcode-project use-profiles
+      - name: Give this build a new build number
+        script: |
+          agvtool new-version -all $(($BUILD_NUMBER + 1))
+      - name: Build the app
+        script: |
+          xcode-project build-ipa --project "$XCODE_PROJECT" --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        submit_to_testflight: false
